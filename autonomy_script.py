@@ -1,10 +1,3 @@
-#github repo
-# add
-# commit -m
-# push
-
-#encoders
-
 import curses
 import subprocess
 import rospy
@@ -53,12 +46,11 @@ def gps(stdscr):
         try:
             key = stdscr.getkey().lower()
             if ready and key == 's':
-                return "slam"
+                return 's'
             elif key == 'q':
                 return
         except curses.error:
             pass
-
 
 #tutaj musze:
 #miec nowy slam, zeby pkt referencyjny byl parametrem
@@ -116,8 +108,7 @@ def slam(stdscr):
 
             else:
                 if key == 'l': #and 40m przejechane
-                    localization(stdscr)
-                    return
+                    return 'l'
 
         except curses.error:
             pass
@@ -137,8 +128,7 @@ def localization(stdscr):
             if key == 'q':
                 return
             elif key == 'm':
-                mapping(stdscr)
-                return
+                return 'm'
 
         except curses.error:
             pass
@@ -159,12 +149,10 @@ def mapping(stdscr):
             if key == 'q':
                 return
             elif key == 'n':
-                navigation(stdscr)
-                return
+                return 'n'
 
         except curses.error:
             pass
-
 
 def navigation(stdscr):
     create_window(stdscr)
@@ -184,27 +172,36 @@ def navigation(stdscr):
         except curses.error:
             pass
 
+def main(stdscr):
+    create_window(stdscr)
+    stdscr.timeout(100)
+    state = None
 
-    # def main(stdscr):
-    #     create_window(stdscr)
-    #     stdscr.addstr(1, 2, "autonomy startup, press g")
-    #     key = curses.getkey().lower()
-    #     # match key:
-    #     #     case 'g':
-    #     #         return gps(stdscr)
-    #     if key == 'g':
-    #         gps(stdscr)
-    #     if key == 's':
-    #         slam(stdscr)
-    #     if key == 'l':
-    #       localization(stdscr)
-    #     if key == 'm':
-    #       mapping(stdscr)
-    #     if key == 'n':
-    #       navigation(stdscr)
-    #     if key == 'q':
-    #         return
+    while True:
+        if state == None:
+            try:
+                state = stdscr.getkey().lower()
+            except curses.error:
+                continue
+        try:
+            match state:
+                case 'g':
+                    state = gps(stdscr)
+                case 's':
+                    state = slam(stdscr)
+                case 'l':
+                    state = localization(stdscr)
+                case 'm':
+                    state = mapping(stdscr)
+                case 'n':
+                    state = navigation(stdscr)
+                case 'q':
+                    return
+                case _:
+                    state = None
+        except curses.error:
+            pass
+                
 
-
-    # if __name__ == '__main__':
-    #     pass
+if __name__ == '__main__':
+    curses.wrapper(main)
