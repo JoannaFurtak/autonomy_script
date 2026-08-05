@@ -2,6 +2,8 @@ import curses
 import subprocess
 import rospy
 from sensor_msgs.msg import NavSatFix
+from nav_msgs.msg import Odometry
+import math
 
 actual_covariance = [999.0]
 actual_position = [0.0, 0.0, 0.0]
@@ -58,12 +60,28 @@ def gps(stdscr):
 # warunek ze dopoki nie przejedzie sie 40m to 
 # zebym nie mogla kliknac l
 
-current_distance = 0.0
+last_pos = [None, None]
 driven_distance = [0.0]
 
-def odometry_callback(msg):
-    if len(driven_distance) > 0:
-        driven_distance[0] = current_distance[0]
+def odometry_callback(msg, stdscr):
+    current_x = msg.pose.pose.position.x
+    current_y = msg.pose.pose.position.y
+
+    if last_pos == None:
+        last_pos[0] = current_x
+        last_pos[1] = current_y
+    else:
+        dx = current_x - last_pos[0]
+        dy = current_y - last_pos[1]
+
+        vector = math.sqrt(dx**2 + dy**2)
+        driven_distance[0] += vector
+
+        last_pos[0] = current_x
+        last_pos[1] = current_y
+
+        if driven_distance[0] >= 40.0:
+            stdscr.addstr(14, 2, "kliklin l")
 
 
 def slam(stdscr):
@@ -73,9 +91,9 @@ def slam(stdscr):
     slam_launched = False
 
     while True:
-        create_window(stdscr)
 
         if not slam_launched:
+            create_window(stdscr)
             stdscr.addstr(4, 2, "Wybierz punkt referencyjny:")
             stdscr.addstr(5, 4, "[1] Uzyj aktualnej pozycji GPS")
             stdscr.addstr(6, 4, "[2] Uzyj domyslnej pozycji")
@@ -90,6 +108,7 @@ def slam(stdscr):
             if not slam_launched:
                 # pkt referencyjny == gps
                 if key == '1':
+                    create_window(stdscr)
                     rospy.set_param('NAZWA_PARAMETRU_PKT', actual_position)
                     stdscr.addstr(10, 2, "idz bujaj lazikiem, nastepnie przejedz nim 40m ")
                     stdscr.addstr(12, 2, "a potem wcisnij l -> localization")
@@ -97,14 +116,16 @@ def slam(stdscr):
                                         stdout=subprocess.DEVNULL,
                                         stderr=subprocess.DEVNULL
                         )
+                    odom_sub = rospy.Subscriber('slam/global_odometry', Odometry, odometry_callback)
                     slam_launched = True
-                    odom_sub = rospy.Subscriber('slam/global_odometry', float, odometry_callback)
 
                 # pkt referencyjny == wybierasz
                 elif key == '2':
+                    create_window(stdscr)
                     stdscr.timeout(-1)
                     curses.echo()
-                    default = stdscr.addstr(10, 2, "wpisz nazwe pkt referencyjnego: ")
+                    stdscr.addstr(10, 2, "wpisz nazwe pkt referencyjnego: ")
+                    default = stdscr.getstr(10, 35).decode('utf-8')
                     rospy.set_param('NAZWA_PARAMETRU_PKT', default)
                     curses.noecho()
                     stdscr.timeout(100)
@@ -114,10 +135,12 @@ def slam(stdscr):
                                                             stdout=subprocess.DEVNULL,
                                                             stderr=subprocess.DEVNULL
                                     )
+                    odom_sub = rospy.Subscriber('slam/global_odometry', Odometry, odometry_callback)
                     slam_launched = True
 
             else:
-                if key == 'l': #and 40m przejechane
+                if key == 'l':
+                    odom_sub.unregister()
                     return 'l'
 
         except curses.error:
