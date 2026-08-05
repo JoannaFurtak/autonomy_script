@@ -57,6 +57,15 @@ def gps(stdscr):
 #odsluchy z odometry aby wiedziec jak daleko jest lazik
 # warunek ze dopoki nie przejedzie sie 40m to 
 # zebym nie mogla kliknac l
+
+current_distance = 0.0
+driven_distance = [0.0]
+
+def odometry_callback(msg):
+    if len(driven_distance) > 0:
+        driven_distance[0] = current_distance[0]
+
+
 def slam(stdscr):
     stdscr.timeout(100)
     create_window(stdscr)
@@ -89,6 +98,7 @@ def slam(stdscr):
                                         stderr=subprocess.DEVNULL
                         )
                     slam_launched = True
+                    odom_sub = rospy.Subscriber('slam/global_odometry', float, odometry_callback)
 
                 # pkt referencyjny == wybierasz
                 elif key == '2':
