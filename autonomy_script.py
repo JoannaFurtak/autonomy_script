@@ -56,7 +56,7 @@ def gps(stdscr):
 #miec nowy slam, zeby pkt referencyjny byl parametrem
 #odsluchy z odometry aby wiedziec jak daleko jest lazik
 # warunek ze dopoki nie przejedzie sie 40m to 
-# nie moge kliknac l
+# zebym nie mogla kliknac l
 def slam(stdscr):
     stdscr.timeout(100)
     create_window(stdscr)
