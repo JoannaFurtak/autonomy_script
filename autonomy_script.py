@@ -22,12 +22,11 @@ def gps_callback(msg):
 
 def gps(stdscr):
     create_window(stdscr)
-    stdscr.addstr(2, 2, "Krok 1 - uruchamianie gps, q to quit")
+    stdscr.addstr(2, 2, "Step 1 - gps startup, q to quit")
     subprocess.Popen(["roslaunch", "sirius_navigation", "gnss.launch"],
                      stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL
     )
-                                #topic,   typ danych,  funkcja do zrobienia po odczytaniu wiadomosci
     gps_sub = rospy.Subscriber('gps/fix', NavSatFix, gps_callback)
 
     stdscr.timeout(100) 
@@ -40,10 +39,9 @@ def gps(stdscr):
             gps_sub.unregister()
 
         if ready:
-            stdscr.addstr(6, 2, 'covariance is ok. press -s- to proceed to slam')
-            return False
+            stdscr.addstr(6, 2, 'covariance is ok, press s to proceed to slam')
         else:
-            stdscr.addstr(6, 2, f'acctual covariance: {actual_covariance[0]}')
+            stdscr.addstr(6, 2, f'covariance: {actual_covariance[0]}')
 
         try:
             key = stdscr.getkey().lower()
@@ -54,12 +52,6 @@ def gps(stdscr):
         except curses.error:
             pass
 
-#tutaj musze:
-#miec nowy slam, zeby pkt referencyjny byl parametrem
-#odsluchy z odometry aby wiedziec jak daleko jest lazik
-# warunek ze dopoki nie przejedzie sie 40m to 
-# zebym nie mogla kliknac l
-
 last_pos = [None, None]
 driven_distance = [0.0]
 
@@ -67,7 +59,7 @@ def odometry_callback(msg, stdscr):
     current_x = msg.pose.pose.position.x
     current_y = msg.pose.pose.position.y
 
-    if last_pos == None:
+    if last_pos[0] == None:
         last_pos[0] = current_x
         last_pos[1] = current_y
     else:
@@ -80,24 +72,26 @@ def odometry_callback(msg, stdscr):
         last_pos[0] = current_x
         last_pos[1] = current_y
 
-        if driven_distance[0] >= 40.0:
-            stdscr.addstr(14, 2, "kliklin l")
-
 
 def slam(stdscr):
     stdscr.timeout(100)
     create_window(stdscr)
-    stdscr.addstr(2, 2, "Krok 2 - uruchamianie slama, q to quit")
+    stdscr.addstr(2, 2, "Step 2 - slam startup, q to quit")
     slam_launched = False
 
     while True:
 
         if not slam_launched:
             create_window(stdscr)
-            stdscr.addstr(4, 2, "Wybierz punkt referencyjny:")
-            stdscr.addstr(5, 4, "[1] Uzyj aktualnej pozycji GPS")
-            stdscr.addstr(6, 4, "[2] Uzyj domyslnej pozycji")
-            stdscr.addstr(8, 2, "[q] Wyjscie")
+            stdscr.addstr(4, 2, "choose a reference point:")
+            stdscr.addstr(5, 4, " 1 - current position")
+            stdscr.addstr(6, 4, "2 - saved position")
+
+        elif slam_launched:
+            if driven_distance[0] >= 40.0:
+                stdscr.addstr(14, 2, "drived 40m, press l")
+                stdscr.refresh()
+
 
         try:
             key = stdscr.getkey().lower()
@@ -110,13 +104,13 @@ def slam(stdscr):
                 if key == '1':
                     create_window(stdscr)
                     rospy.set_param('NAZWA_PARAMETRU_PKT', actual_position)
-                    stdscr.addstr(10, 2, "idz bujaj lazikiem, nastepnie przejedz nim 40m ")
-                    stdscr.addstr(12, 2, "a potem wcisnij l -> localization")
+                    stdscr.addstr(10, 2, "go shake the rover, then drive for 40m")
+                    stdscr.addstr(12, 2, "next press l -> localization")
                     subprocess.Popen(["roslaunch", "sirius_spectacularai", "slam.launch"],
                                         stdout=subprocess.DEVNULL,
                                         stderr=subprocess.DEVNULL
                         )
-                    odom_sub = rospy.Subscriber('slam/global_odometry', Odometry, odometry_callback)
+                    odom_sub = rospy.Subscriber('slam/global_odometry', Odometry, odometry_callback, callback_args=stdscr)
                     slam_launched = True
 
                 # pkt referencyjny == wybierasz
@@ -124,22 +118,22 @@ def slam(stdscr):
                     create_window(stdscr)
                     stdscr.timeout(-1)
                     curses.echo()
-                    stdscr.addstr(10, 2, "wpisz nazwe pkt referencyjnego: ")
+                    stdscr.addstr(10, 2, "type the name of the reference point: ")
                     default = stdscr.getstr(10, 35).decode('utf-8')
-                    rospy.set_param('NAZWA_PARAMETRU_PKT', default)
+                    rospy.get_param(default)
                     curses.noecho()
                     stdscr.timeout(100)
-                    stdscr.addstr(12, 2, "idz bujaj lazikiem, nastepnie przejedz nim 40m")
-                    stdscr.addstr(14, 2, "a potem wcisnij l -> localization")
+                    stdscr.addstr(12, 2, "go shake the rover, then drive for 40m")
+                    stdscr.addstr(14, 2, "next press l -> localization")
                     subprocess.Popen(["roslaunch", "sirius_spectacularai", "slam.launch"],
                                                             stdout=subprocess.DEVNULL,
                                                             stderr=subprocess.DEVNULL
                                     )
-                    odom_sub = rospy.Subscriber('slam/global_odometry', Odometry, odometry_callback)
+                    odom_sub = rospy.Subscriber('slam/global_odometry', Odometry, odometry_callback, callback_args=stdscr)
                     slam_launched = True
 
             else:
-                if key == 'l':
+                if key == 'l' and driven_distance[0] >= 40.0:
                     odom_sub.unregister()
                     return 'l'
 
@@ -149,14 +143,14 @@ def slam(stdscr):
 def localization(stdscr):
     create_window(stdscr)
     stdscr.timeout(100)
-    stdscr.addstr(2, 2, "Krok 3 - uruchamianie localization, q to quit")
+    stdscr.addstr(2, 2, "Step 3 - localization startup, q to quit")
     subprocess.Popen(["roslaunch", "sirius_navigation", "localization.launch"],
                      stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL
                     )
     while True:
         try:
-            key = curses.getkey().lower()
+            key = stdscr.getkey().lower()
 
             if key == 'q':
                 return
@@ -166,18 +160,17 @@ def localization(stdscr):
         except curses.error:
             pass
 
-#odrive?
 def mapping(stdscr):
     create_window(stdscr)
     stdscr.timeout(100)
-    stdscr.addstr(2, 2, "Krok 4 - uruchamianie mapping, q to quit")
+    stdscr.addstr(2, 2, "Step 4 - mapping startup, q to quit")
     subprocess.Popen(["roslaunch", "sirius_mapping", "sirius_mapping.launch"],
                      stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL
                     )
     while True:
         try:
-            key = curses.getkey().lower()
+            key = stdscr.getkey().lower()
 
             if key == 'q':
                 return
@@ -190,14 +183,14 @@ def mapping(stdscr):
 def navigation(stdscr):
     create_window(stdscr)
     stdscr.timeout(100)
-    stdscr.addstr(2, 2, "Krok 5 - uruchamianie naviagtion, q to quit")
+    stdscr.addstr(2, 2, "Krok 5 - naviagtion startup, q to quit")
     subprocess.Popen(["roslaunch", "sirius_navigation", "navigation.launch"],
                      stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL
                     )
     while True:
         try:
-            key = curses.getkey().lower()
+            key = stdscr.getkey().lower()
 
             if key == 'q':
                 return
@@ -214,25 +207,25 @@ def main(stdscr):
         if state == None:
             try:
                 state = stdscr.getkey().lower()
-            except curses.error:
+            except curses.error():
                 continue
+
         try:
-            match state:
-                case 'g':
-                    state = gps(stdscr)
-                case 's':
-                    state = slam(stdscr)
-                case 'l':
-                    state = localization(stdscr)
-                case 'm':
-                    state = mapping(stdscr)
-                case 'n':
-                    state = navigation(stdscr)
-                case 'q':
-                    return
-                case _:
-                    state = None
-        except curses.error:
+            if state == 'g':
+                state = gps(stdscr)
+            elif state == 's':
+                state = slam(stdscr)
+            elif state == 'l':
+                state = localization(stdscr)
+            elif state == 'm':
+                state = mapping(stdscr)
+            elif state == 'n':
+                state = navigation(stdscr)
+            elif state == 'q':
+                return
+            else:
+                state == None
+        except curses.error():
             pass
                 
 
