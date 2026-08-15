@@ -1,6 +1,7 @@
 import curses
 import subprocess
 import rospy
+from pick import Option, pick
 from sensor_msgs.msg import NavSatFix
 from nav_msgs.msg import Odometry
 import math
@@ -116,21 +117,27 @@ def slam(stdscr):
                 # pkt referencyjny == wybierasz
                 elif key == '2':
                     create_window(stdscr)
+                    points = ["p1", "p2"]
+                    title = "pick a referenece point"
                     stdscr.timeout(-1)
-                    curses.echo()
-                    stdscr.addstr(10, 2, "type the name of the reference point: ")
-                    default = stdscr.getstr(10, 35).decode('utf-8')
-                    rospy.get_param(default)
-                    curses.noecho()
-                    stdscr.timeout(100)
-                    stdscr.addstr(12, 2, "go shake the rover, then drive for 40m")
-                    stdscr.addstr(14, 2, "next press l -> localization")
-                    subprocess.Popen(["roslaunch", "sirius_spectacularai", "slam.launch"],
-                                                            stdout=subprocess.DEVNULL,
-                                                            stderr=subprocess.DEVNULL
-                                    )
-                    odom_sub = rospy.Subscriber('slam/global_odometry', Odometry, odometry_callback, callback_args=stdscr)
-                    slam_launched = True
+                    curses.endwin() #???
+                    chosen_point, index = pick(points, title)
+                    stdscr.clear()
+                    stdscr.refresh()
+                    try:
+                        coordinates = rospy.get_param(chosen_point)
+                        rospy.set_param("nazsa paramwetu pkt", coordinates)
+                        stdscr.timeout(100)
+                        stdscr.addstr(12, 2, "go shake the rover, then drive for 40m")
+                        stdscr.addstr(14, 2, "next press l -> localization")
+                        subprocess.Popen(["roslaunch", "sirius_spectacularai", "slam.launch"],
+                                                                stdout=subprocess.DEVNULL,
+                                                                stderr=subprocess.DEVNULL
+                                        )
+                        odom_sub = rospy.Subscriber('slam/global_odometry', Odometry, odometry_callback, callback_args=stdscr)
+                        slam_launched = True
+                    except KeyError:
+                        stdscr.addstr(14, 2, "chosen point doesn't exist" )
 
             else:
                 if key == 'l' and driven_distance[0] >= 40.0:
