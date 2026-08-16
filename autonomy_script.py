@@ -10,6 +10,7 @@ actual_covariance = [999.0]
 actual_position = [0.0, 0.0, 0.0]
 covariance_status = "none"
 gps_ready = False
+gps_sub = None
 
 def gps_callback(msg):
     if len(msg.position_covariance) > 0:
@@ -20,19 +21,21 @@ def gps_callback(msg):
         actual_position[2] = msg.altitude
 
 def gps():
+    global covariance_status, gps_ready, gps_sub
     subprocess.Popen(["roslaunch", "sirius_navigation", "gnss.launch"],
                      stdout=subprocess.DEVNULL,
                      stderr=subprocess.DEVNULL
     )
     gps_sub = rospy.Subscriber('gps/fix', NavSatFix, gps_callback)
 
-    global covariance_status, gps_ready
     covariance_status = "waiting for data"
     gps_ready = False
 
 
 
-
+status_slam = "[inactive]"
+slam_launched = False
+odom_sub = None
 last_pos = [None, None]
 driven_distance = [0.0]
 
@@ -55,8 +58,8 @@ def odometry_callback(msg, stdscr):
 
 
 def slam(stdscr):
-    stdscr.timeout(100)
-    create_window(stdscr)
+    curses.endwin()
+    
     stdscr.addstr(2, 2, "Step 2 - slam startup, q to quit")
     slam_launched = False
 
@@ -224,7 +227,7 @@ def main(stdscr):
         #RYSOWANIE CHECKLISTY
         stdscr.addstr(1, 2, "AUTONOMY STARTUP", curses.A_BOLD)
         stdscr.addstr(3, 2, f"status gps = [{covariance_status}]")
-        stdscr.addstr(4, 2, "status slam = []")
+        stdscr.addstr(4, 2, f"status slam = [{status_slam}]")
         stdscr.addstr(5, 2, "status localization = []")
         stdscr.addstr(6, 2, "status mapping = []")
         stdscr.addstr(7, 2, "status navigation = []")
@@ -254,10 +257,14 @@ def main(stdscr):
         elif klawisz in [curses.KEY_ENTER, 10, 13]: # Enter
             
             #logiki dla wierszy
-            if aktualny_wiersz == 0:
+            if aktualny_wiersz == 0 and gps_sub is None:
                 gps()
             elif aktualny_wiersz == 1:
-                slam()
+                if not gps_ready:
+                    status_slam = ["gps not active"]
+                else:
+                    curses.endwin
+
             elif aktualny_wiersz == 2:
                 localization(stdscr)
                 status_slam = "[ active ]"
