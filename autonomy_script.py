@@ -31,8 +31,7 @@ def gps():
 
     covariance_status = "waiting for data"
     gps_ready = False
-
-
+                                          
 
 status_slam = "inactive"
 slam_launched = False
