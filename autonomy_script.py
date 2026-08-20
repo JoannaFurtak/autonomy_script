@@ -4,15 +4,15 @@ import rospy
 from sensor_msgs.msg import NavSatFix
 from nav_msgs.msg import Odometry
 import math
-from pick import pick
 import yaml
+import rospkg
+import os
 
 actual_covariance = [999.0]
 actual_position = [0.0, 0.0, 0.0]
 covariance_status = "none"
 gps_ready = False
 gps_sub = None
-#status_gps = "inactive"
 
 def gps_callback(msg):
     if len(msg.position_covariance) > 0:
@@ -67,17 +67,15 @@ def slam(mode):
         status_slam = "[active (pos from gps)-> drive for 40m]"
         
     elif mode == 'yaml':
-        slam_params_path = "/root/catkin_ws/src/sirius_spectacularai/config/coords.yaml"
+        rospack = rospkg.RosPack()
+        pkg_path = rospack.get_path('sirius_spectacularai')
+        slam_params_path = os.path.join(pkg_path, "config", "slam_params.yaml")
         with open(slam_params_path, 'r') as file:
             coords = yaml.safe_load(file)
-            
+
         yaml_lat = coords['latitude']
         yaml_lon = coords['longitude']
         yaml_alt = coords['altitude']
-        
-        rospy.set_param('latitude', yaml_lat)
-        rospy.set_param('longitude', yaml_lon)
-        rospy.set_param('altitude', yaml_alt)
         
         status_slam = "[active (yaml) -> drive for 40m]"
         
@@ -227,18 +225,6 @@ def main(stdscr):
                     navigation()
             if aktualny_wiersz == 7:
                 break
-
-#~~~~~~~~~~~~~~~~~~~~~~TESTY~~~~~~~~~~~~~
-        if klawisz == ord('g'):
-            gps_ready = True
-            covariance_status = "ready (TEST)"
-            
-        if klawisz == ord('d'):
-            driven_distance[0] = 45.0
-            slam_launched = True
-            status_slam = "active (TEST)"
-#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 
 if __name__ == '__main__':
     curses.wrapper(main)
