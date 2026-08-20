@@ -64,7 +64,7 @@ def slam(mode):
         rospy.set_param('latitude', actual_position[0])
         rospy.set_param('longitude', actual_position[1])
         rospy.set_param('altitude', actual_position[2])
-        status_slam = "[active (pos from gps)-> drive for 40m]"
+        status_slam = "active (pos from gps)-> drive for 40m"
         
     elif mode == 'yaml':
         rospack = rospkg.RosPack()
@@ -77,7 +77,7 @@ def slam(mode):
         yaml_lon = coords['longitude']
         yaml_alt = coords['altitude']
         
-        status_slam = "[active (yaml) -> drive for 40m]"
+        status_slam = "active (yaml) -> drive for 40m"
         
     subprocess.Popen(["roslaunch", "sirius_spectacularai", "slam.launch"], 
                      stdout=subprocess.DEVNULL,
@@ -142,12 +142,11 @@ def main(stdscr):
         "5. navigation",
         "4. quit programm"
     ]
-    aktualny_wiersz = 0
+    current_row = 0
 
     while True:
         stdscr.clear()
 
-        #1 GPS 
         if gps_sub is not None and not gps_ready:
             if actual_covariance[0] != 999.0: 
                 if actual_covariance[0] <= 0.002:
@@ -170,7 +169,7 @@ def main(stdscr):
             x = 4
             y = 12 + index
             
-            if index == aktualny_wiersz:
+            if index == current_row:
                 stdscr.addstr(y, x, f"> {option_txt} <", curses.A_REVERSE)
             else:
                 stdscr.addstr(y, x, f"  {option_txt}  ")
@@ -179,32 +178,32 @@ def main(stdscr):
 
         klawisz = stdscr.getch()
 
-        if klawisz == curses.KEY_UP and aktualny_wiersz > 0:
-            aktualny_wiersz -= 1
-        if klawisz == curses.KEY_DOWN and aktualny_wiersz < len(options) - 1:
-            aktualny_wiersz += 1
+        if klawisz == curses.KEY_UP and current_row > 0:
+            current_row -= 1
+        if klawisz == curses.KEY_DOWN and current_row < len(options) - 1:
+            current_row += 1
 
 
         if klawisz in [curses.KEY_ENTER, 10, 13]: # Enter
-            if aktualny_wiersz == 0 and gps_sub is None:
+            if current_row == 0 and gps_sub is None:
                 gps()
 
-            if aktualny_wiersz == 1:
+            if current_row == 1:
                 pass
 
-            if aktualny_wiersz == 2:
+            if current_row == 2:
                 if not gps_ready:
                     status_slam = "error: gps not active"
                 else:
                     slam('gps')
 
-            if aktualny_wiersz == 3:
+            if current_row == 3:
                 if not gps_ready:
                     status_slam = "error: gps not active"
                 else:
                     slam('yaml')
 
-            if aktualny_wiersz == 4:
+            if current_row == 4:
                 if not slam_launched:
                     status_localization = "error start slam first"
                 elif driven_distance[0] < 40.0:
@@ -212,19 +211,30 @@ def main(stdscr):
                 else:
                     localization()
             
-            if aktualny_wiersz == 5:
+            if current_row == 5:
                 if status_localization != "active":
                     status_mapping = "error: start localization first"
                 else:
                     mapping()
 
-            if aktualny_wiersz == 6:
+            if current_row == 6:
                 if status_mapping != "active":
                     status_navigation = "error: start mapping first"
                 else:
                     navigation()
-            if aktualny_wiersz == 7:
+            if current_row == 7:
                 break
+
+#~~~~~~~~~~~~~~~~~~~~~~TESTY~~~~~~~~~~~~~
+        # if klawisz == ord('g'):
+        #     gps_ready = True
+        #     covariance_status = "ready (TEST)"
+            
+        # if klawisz == ord('d'):
+        #     driven_distance[0] = 45.0
+        #     slam_launched = True
+        #     status_slam = "active (TEST)"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 if __name__ == '__main__':
     curses.wrapper(main)
