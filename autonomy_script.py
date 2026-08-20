@@ -12,7 +12,7 @@ actual_position = [0.0, 0.0, 0.0]
 covariance_status = "none"
 gps_ready = False
 gps_sub = None
-status_gps = "inactive"
+#status_gps = "inactive"
 
 def gps_callback(msg):
     if len(msg.position_covariance) > 0:
@@ -57,35 +57,17 @@ def odometry_callback(msg):
         last_pos[0] = current_x
         last_pos[1] = current_y
 
-
-def slam(stdscr):
+def slam(mode):
     global status_slam, slam_launched, odom_sub, actual_position
     
-    title = "Pick a reference point for SLAM: "
-    options = ["1. current pos", "2. itc" ]
-    
-    # Tylko raz endwin przed pickiem
-    curses.endwin()
-    chosen_point, index = pick(options, title)
-    
-    # Od razu ożywiamy terminal po picku (Odkomentuj to!)
-    curses.doupdate()
-    stdscr.keypad(True)
-    curses.flushinp()
-    stdscr.clear()
-    curses.curs_set(0)
-    curses.noecho()
-    stdscr.timeout(100)
-    stdscr.refresh()
-    
-    if index == 0:
+    if mode == 'gps':
         rospy.set_param('latitude', actual_position[0])
         rospy.set_param('longitude', actual_position[1])
         rospy.set_param('altitude', actual_position[2])
         status_slam = "[active (pos from gps)-> drive for 40m]"
         
-    elif index == 1:
-        slam_params_path = "/root/catkin_ws/src/coords.yaml"
+    elif mode == 'yaml':
+        slam_params_path = "/root/catkin_ws/src/sirius_spectacularai/config/coords.yaml"
         with open(slam_params_path, 'r') as file:
             coords = yaml.safe_load(file)
             
@@ -97,7 +79,7 @@ def slam(stdscr):
         rospy.set_param('longitude', yaml_lon)
         rospy.set_param('altitude', yaml_alt)
         
-        status_slam = f"[ active (yaml) -> drive for 40m ]"
+        status_slam = "[active (yaml) -> drive for 40m]"
         
     subprocess.Popen(["roslaunch", "sirius_spectacularai", "slam.launch"], 
                      stdout=subprocess.DEVNULL,
@@ -106,7 +88,6 @@ def slam(stdscr):
     odom_sub = rospy.Subscriber('slam/global_odometry', Odometry, odometry_callback)
     
     slam_launched = True
-
 
 status_localization = "inactive"
 def localization():
@@ -127,7 +108,7 @@ def mapping():
                      stderr=subprocess.DEVNULL
                     )
 
-    status_mapping = "[ active ]"
+    status_mapping = "active"
     global mapping_launched
     mapping_launched = True
 
@@ -150,14 +131,14 @@ def main(stdscr):
     global status_mapping, mapping_launched
     global status_navigation
 
-    #wsteone ustawienie
-    curses.curs_set(0) #niema myszkiiii
-    stdscr.timeout(100) #10razy na sek petla
+    curses.curs_set(0)
+    stdscr.timeout(100)
 
-    #kroki
     options = [
         "1. GPS startup",
         "2. SLAM",
+        "   - current pos (gps)",
+        "   - itc",
         "3. localization",
         "4. mapping",
         "5. navigation",
@@ -165,7 +146,6 @@ def main(stdscr):
     ]
     aktualny_wiersz = 0
 
-    #petla dzialania funkcji i rysowania ekranu
     while True:
         stdscr.clear()
 
@@ -179,7 +159,6 @@ def main(stdscr):
                 else:
                     covariance_status = f"{round(actual_covariance[0], 4)}"
 
-        #RYSOWANIE CHECKLISTY
         stdscr.addstr(1, 2, "AUTONOMY STARTUP", curses.A_BOLD)
         stdscr.addstr(3, 2, f"status gps = [{covariance_status}]")
         stdscr.addstr(4, 2, f"status slam = [{status_slam}]")
@@ -188,21 +167,18 @@ def main(stdscr):
         stdscr.addstr(7, 2, f"status navigation = [{status_navigation}]")
         stdscr.addstr(8, 2, "-" * 40)
         
-        #menu do odpalania funkcji
         stdscr.addstr(10, 2, "functions:", curses.A_BOLD)
         for index, option_txt in enumerate(options):
             x = 4
             y = 12 + index
             
             if index == aktualny_wiersz:
-                #podswietlenie
                 stdscr.addstr(y, x, f"> {option_txt} <", curses.A_REVERSE)
             else:
                 stdscr.addstr(y, x, f"  {option_txt}  ")
 
         stdscr.refresh()
 
-        #obsluga klawiszy
         klawisz = stdscr.getch()
 
         if klawisz == curses.KEY_UP and aktualny_wiersz > 0:
@@ -212,39 +188,47 @@ def main(stdscr):
 
 
         if klawisz in [curses.KEY_ENTER, 10, 13]: # Enter
-            #logiki dla wierszy
             if aktualny_wiersz == 0 and gps_sub is None:
                 gps()
 
             if aktualny_wiersz == 1:
-                if not gps_ready:
-                    status_slam = "gps not active"
-                else:
-                    slam(stdscr)
+                pass
 
             if aktualny_wiersz == 2:
+                if not gps_ready:
+                    status_slam = "error: gps not active"
+                else:
+                    slam('gps')
+
+            if aktualny_wiersz == 3:
+                if not gps_ready:
+                    status_slam = "error: gps not active"
+                else:
+                    slam('yaml')
+
+            if aktualny_wiersz == 4:
                 if not slam_launched:
                     status_localization = "error start slam first"
                 elif driven_distance[0] < 40.0:
                     status_localization = f"drive 40m, now: {round(driven_distance[0], 1)}"
                 else:
-                    localization(stdscr)
+                    localization()
             
-            if aktualny_wiersz == 3:
+            if aktualny_wiersz == 5:
                 if status_localization != "active":
                     status_mapping = "error: start localization first"
                 else:
                     mapping()
 
-            if aktualny_wiersz == 4:
+            if aktualny_wiersz == 6:
                 if status_mapping != "active":
                     status_navigation = "error: start mapping first"
                 else:
                     navigation()
-            if aktualny_wiersz == 5:
+            if aktualny_wiersz == 7:
                 break
 
-
+#~~~~~~~~~~~~~~~~~~~~~~TESTY~~~~~~~~~~~~~
         if klawisz == ord('g'):
             gps_ready = True
             covariance_status = "ready (TEST)"
@@ -253,6 +237,7 @@ def main(stdscr):
             driven_distance[0] = 45.0
             slam_launched = True
             status_slam = "active (TEST)"
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 
 if __name__ == '__main__':
